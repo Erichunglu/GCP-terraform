@@ -1,0 +1,35 @@
+#Create key-pair for logging into EC2 in us-east-1
+resource "aws_key_pair" "remote-server" {
+  key_name   = "remote-server"
+  public_key = file("/Users/Hung_Hsi_Huang/.ssh/id_rsa.pub")
+}
+
+
+#the resource for the aws instance that uses the remote-exec !!! Bad Practice
+resource "aws_instance" "remote-server" {
+  ami = data.aws_ssm_parameter.cathay-ami.value
+  subnet_id     = module.vpc.subnet-id
+  security_groups = [aws_security_group.cbl-sg.id]
+  key_name        = aws_key_pair.remote-server.key_name
+  instance_type = "t2.micro"
+  availability_zone = "us-east-1a"
+
+    provisioner "remote-exec" {
+        inline = [
+          "sudo yum -y install httpd",
+          "sudo systemctl start httpd && sudo systemctl enable httpd",
+          "echo '<h1><center>This is our Cathay Bootcamp Website</center></h1>' > index.html",
+          "sudo mv index.html /var/www/html/"
+        ]
+        connection {
+            type = "ssh"
+            user = "ec2-user"
+            private_key = file("~/.ssh/id_rsa")
+            host = self.public_ip
+        }
+    }
+    tags = {
+        Name = "cbl-web-server"
+    }
+
+}
